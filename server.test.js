@@ -2,11 +2,14 @@
 
 const request = require('supertest');
 const axios = require('axios');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 // Mock axios so tests don't need a real Ollama instance
 jest.mock('axios');
 
-const { app, containsJailbreak, wrapUserInput } = require('./server');
+const { app, containsJailbreak, wrapUserInput, loadResumeData, buildSystemPrompt } = require('./server');
 
 // ---------------------------------------------------------------------------
 // Helper: build a minimal successful Ollama response
@@ -132,5 +135,80 @@ describe('POST /chat – Ollama error', () => {
 
     expect(res.status).toBe(502);
     expect(res.body.error).toMatch(/AI service/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// loadResumeData
+// ---------------------------------------------------------------------------
+describe('loadResumeData', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'resume-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('returns empty string and warns when directory does not exist', () => {
+    const spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = loadResumeData('/nonexistent/path/xyz');
+    expect(result).toBe('');
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('could not be read'));
+    spy.mockRestore();
+  });
+
+  test('returns empty string and warns when directory has no txt files', () => {
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), '# notes');
+    const spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = loadResumeData(tmpDir);
+    expect(result).toBe('');
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('No .txt files found'));
+    spy.mockRestore();
+  });
+
+  test('reads a single txt file and wraps it with the file header', () => {
+    fs.writeFileSync(path.join(tmpDir, 'resume.txt'), 'Name: Alex\nTitle: Engineer');
+    const result = loadResumeData(tmpDir);
+    expect(result).toContain('### FILE: resume.txt ###');
+    expect(result).toContain('Name: Alex');
+    expect(result).toContain('Title: Engineer');
+  });
+
+  test('reads multiple txt files in sorted order', () => {
+    fs.writeFileSync(path.join(tmpDir, 'b_skills.txt'), 'Skills: Node.js');
+    fs.writeFileSync(path.join(tmpDir, 'a_resume.txt'), 'Name: Alex');
+    const result = loadResumeData(tmpDir);
+    const posA = result.indexOf('a_resume.txt');
+    const posB = result.indexOf('b_skills.txt');
+    expect(posA).toBeLessThan(posB);
+  });
+
+  test('ignores non-txt files', () => {
+    fs.writeFileSync(path.join(tmpDir, 'resume.txt'), 'Name: Alex');
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), '# Should be ignored');
+    const result = loadResumeData(tmpDir);
+    expect(result).not.toContain('notes.md');
+    expect(result).not.toContain('Should be ignored');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildSystemPrompt
+// ---------------------------------------------------------------------------
+describe('buildSystemPrompt', () => {
+  test('returns base prompt when no resume data is provided', () => {
+    const prompt = buildSystemPrompt('');
+    expect(prompt).toContain('professional career assistant');
+    expect(prompt).not.toContain('RESUME DATA START');
+  });
+
+  test('appends resume data between delimiters', () => {
+    const prompt = buildSystemPrompt('Name: Alex');
+    expect(prompt).toContain('--- RESUME DATA START ---');
+    expect(prompt).toContain('Name: Alex');
+    expect(prompt).toContain('--- RESUME DATA END ---');
   });
 });
