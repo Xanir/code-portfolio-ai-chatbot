@@ -1,6 +1,6 @@
 # code-portfolio-ai-chatbot
 
-Chatbot for code portfolio to answer interview style questions. It acts as a professional career assistant for Enzey based on provided resume data files, utilizing an Ollama instance to generate responses.
+Chatbot for code portfolio to answer interview style questions. It acts as a professional career assistant for Jo Aspelund based on provided resume data files, utilizing an Ollama instance to generate responses.
 
 ## Getting Started
 

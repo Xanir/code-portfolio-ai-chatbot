@@ -9,7 +9,8 @@ const path = require('path');
 // Mock axios so tests don't need a real Ollama instance
 jest.mock('axios');
 
-const { app, containsJailbreak, wrapUserInput, loadResumeData, buildSystemPrompt } = require('./server');
+const { app, containsJailbreak, wrapUserInput } = require('../server');
+const { loadResumeData, buildSystemPrompt } = require('./systemPrompts');
 
 // ---------------------------------------------------------------------------
 // Helper: build a minimal successful Ollama response
