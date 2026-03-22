@@ -272,7 +272,12 @@ app.post('/chat', limiter, async (req, res) => {
   } catch (err) {
     if (!res.headersSent) {
       console.error('Ollama error:', err.message);
-      res.status(502).json({ error: 'Failed to get a response from the AI service.' });
+      const connectionErrors = ['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'ETIMEDOUT', 'EPIPE'];
+      if (connectionErrors.includes(err.code) || err.message.toLowerCase().includes('socket closed')) {
+        res.status(503).json({ error: 'Service Unavailable: Cannot connect to the AI service.' });
+      } else {
+        res.status(502).json({ error: 'Failed to get a response from the AI service.' });
+      }
     }
   }
 });
